@@ -41,3 +41,11 @@ requirements.txt      # Project dependencies
    ```bash
    python main.py
    ```
+
+### 🧠 Challenges & Solutions
+
+**Dependency Management**: Encountered ModuleNotFoundError for libraries like pandas and sqlalchemy. Resolved by creating a comprehensive requirements.txt to ensure environment reproducibility.
+
+**Data Privacy**: Navigated the risk of leaking local database files to a public repo. Implemented a strict .gitignore policy to block .db and .csv files while keeping the logic portable.
+
+**Modular Structure**: Transitioned from a single-script approach to a modular /scripts architecture to improve code readability and maintenance.
