@@ -4,16 +4,34 @@ import json
 import logging
 from typing import Optional, Dict, Any
 import argparse
+from pathlib import Path
+from urllib3.util.retry import Retry
+from requests.adapters import HTTPAdapter
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 class DataExtractor:
-    def __init__(self, api_url: str):
+    def __init__(self, api_url: str, session: Optional[requests.Session] = None):
         self.api_url = api_url
         self.data = None
         self.response = None
+        self.session = session or self._build_session()
+
+    def _build_session(self) -> requests.Session:
+        session = requests.Session()
+        retries = Retry(
+            total=3,
+            backoff_factor=0.5,
+            status_forcelist=(429, 500, 502, 503, 504),
+            allowed_methods=("GET",),
+            raise_on_status=False,
+        )
+        adapter = HTTPAdapter(max_retries=retries)
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+        return session
 
     def fetch_data(self, params: Optional[Dict[str, Any]] = None, headers: Optional[Dict[str, str]] = None) -> 'DataExtractor':
         """
@@ -28,7 +46,7 @@ class DataExtractor:
         """
         try:
             logger.info(f"Fetching data from {self.api_url}")
-            self.response = requests.get(self.api_url, params=params, headers=headers, timeout=30)
+            self.response = self.session.get(self.api_url, params=params, headers=headers, timeout=30)
             self.response.raise_for_status()
             
             content_type = self.response.headers.get('content-type', '')
@@ -60,22 +78,20 @@ class DataExtractor:
         if not self.data:
             raise ValueError("No data to flatten. Call fetch_data() first.")
         
-        def flatten_dict(d: Dict, parent_key: str = '', sep: str = '_') -> Dict:
-            items = {}
-            for k, v in d.items():
-                new_key = f"{parent_key}{sep}{k}" if parent_key else k
-                if isinstance(v, dict):
-                    items.update(flatten_dict(v, new_key, sep=sep))
-                elif isinstance(v, list):
-                    items[new_key] = json.dumps(v)
-                else:
-                    items[new_key] = v
-            return items
-        
         if isinstance(self.data, list):
-            self.data = [flatten_dict(item) for item in self.data]
+            normalized = pd.json_normalize(self.data, sep="_")
         elif isinstance(self.data, dict):
-            self.data = [flatten_dict(self.data)]
+            normalized = pd.json_normalize([self.data], sep="_")
+        else:
+            raise ValueError("Unsupported data type for flattening.")
+
+        for col in normalized.columns:
+            if normalized[col].apply(lambda item: isinstance(item, (list, dict))).any():
+                normalized[col] = normalized[col].apply(
+                    lambda item: json.dumps(item) if isinstance(item, (list, dict)) else item
+                )
+
+        self.data = normalized.to_dict(orient="records")
         
         logger.info("Data flattened successfully")
         return self
@@ -93,6 +109,7 @@ class DataExtractor:
         
         try:
             df = pd.DataFrame(self.data)
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
             df.to_csv(output_path, index=index)
             logger.info(f"Data saved to {output_path}")
             logger.info(f"Saved {len(df)} rows and {len(df.columns)} columns")
@@ -114,6 +131,7 @@ class DataExtractor:
         
         try:
             df = pd.DataFrame(self.data)
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
             df.to_json(output_path, orient=orient, indent=indent)
             logger.info(f"Data saved to {output_path}")
         except Exception as e:

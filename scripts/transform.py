@@ -3,6 +3,7 @@ import numpy as np
 from typing import Union, List, Dict, Optional
 import json
 import logging
+from pathlib import Path
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -199,6 +200,7 @@ def save_data(df: pd.DataFrame, destination: str, file_type: Optional[str] = Non
             raise ValueError("Cannot auto-detect file type. Please specify file_type parameter.")
     
     logger.info(f"Saving data to {destination} as {file_type}")
+    Path(destination).parent.mkdir(parents=True, exist_ok=True)
     
     if file_type == 'csv':
         df.to_csv(destination, index=False)
