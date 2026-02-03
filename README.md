@@ -42,6 +42,15 @@ requirements.txt      # Project dependencies
    python main.py
    ```
 
+3. **Optional: customize inputs/outputs**
+   ```bash
+   python main.py --url https://jsonplaceholder.typicode.com/users \
+     --extracted data/extracted_users.csv \
+     --output data/final_output.csv \
+     --db data/pipeline.db \
+     --table users
+   ```
+
 ### 🧠 Challenges & Solutions
 
 **Dependency Management**: Encountered ModuleNotFoundError for libraries like pandas and sqlalchemy. Resolved by creating a comprehensive requirements.txt to ensure environment reproducibility.
